@@ -25,7 +25,7 @@ private fun List<FormulaStepResult>.orResults() =
 
 public data class FormulaStep<A>(val result: FormulaStepResult, val next: Formula<A>)
 
-public fun <A> Atomic<A>.atomicProgress(x: Result<A>): FormulaStepResult = when (this) {
+public suspend fun <A> Atomic<A>.atomicProgress(x: Result<A>): FormulaStepResult = when (this) {
   is TRUE -> everythingOk
   is FALSE -> problem("fail")
   is Predicate -> x.fold(
@@ -38,7 +38,7 @@ public fun <A> Atomic<A>.atomicProgress(x: Result<A>): FormulaStepResult = when 
   )
 }
 
-public fun <A> Formula<A>.progress(x: Result<A>): FormulaStep<A> = when (this) {
+public suspend fun <A> Formula<A>.progress(x: Result<A>): FormulaStep<A> = when (this) {
   is Atomic ->
     FormulaStep(this.atomicProgress(x), TRUE)
   is Not -> {

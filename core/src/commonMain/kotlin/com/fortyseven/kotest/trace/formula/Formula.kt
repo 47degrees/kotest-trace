@@ -70,8 +70,8 @@ public sealed interface Constant: Atomic<Any?>
 public object TRUE: Constant
 public object FALSE: Constant
 
-internal data class Predicate<in A>(val message: String, val test: (A) -> Boolean): Atomic<A>
-internal data class Throws(val message: String, val test: (Throwable) -> Boolean): Atomic<Any?>
+internal data class Predicate<in A>(val message: String, val test: suspend (A) -> Boolean): Atomic<A>
+internal data class Throws(val message: String, val test: suspend (Throwable) -> Boolean): Atomic<Any?>
 
 internal data class Not<in A>(val formula: Atomic<A>): Formula<A>
 
@@ -97,13 +97,13 @@ internal data class DependentNext<in A>(val formula: (A) -> Formula<A>): Formula
 /**
  * Basic formula which checks that an item is produced, and satisfies the [predicate].
  */
-public fun <A> holds(message: String, predicate: (A) -> Boolean): Atomic<A> =
+public fun <A> holds(message: String, predicate: suspend (A) -> Boolean): Atomic<A> =
   Predicate(message, predicate)
 
 /**
  * Basic formula which checks that an exception of type [T] has been thrown.
  */
-public fun <T: Throwable> throws(klass: KClass<T>, message: String, predicate: (T) -> Boolean = { true }): Atomic<Any?> =
+public fun <T: Throwable> throws(klass: KClass<T>, message: String, predicate: suspend (T) -> Boolean = { true }): Atomic<Any?> =
   Throws(message) {
     @Suppress("UNCHECKED_CAST")
     if (klass.isInstance(it)) predicate(it as T) else false
@@ -112,7 +112,7 @@ public fun <T: Throwable> throws(klass: KClass<T>, message: String, predicate: (
 /**
  * Basic formula which checks that an exception of type [T] has been thrown.
  */
-public inline fun <reified T: Throwable> throws(message: String, noinline predicate: (T) -> Boolean = { true }): Atomic<Any?> =
+public inline fun <reified T: Throwable> throws(message: String, noinline predicate: suspend (T) -> Boolean = { true }): Atomic<Any?> =
   throws(T::class, message, predicate)
 
 /**

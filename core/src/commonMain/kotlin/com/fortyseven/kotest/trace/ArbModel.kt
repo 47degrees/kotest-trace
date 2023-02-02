@@ -52,7 +52,7 @@ public fun <State, Action> ArbModel<State, Action>.gen(
 public suspend fun <AbstractState, ConcreteState, Action, Response> checkAgainst(
   model: ArbModel<AbstractState, Action>,
   initial: ConcreteState,
-  step: (Action, ConcreteState) -> Step<ConcreteState, Response>,
+  step: suspend (Action, ConcreteState) -> Step<ConcreteState, Response>,
   range: IntRange = 1 .. 100,
   formula: () -> Formula<Info<Action, ConcreteState, Response>>
 ) {

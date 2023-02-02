@@ -14,10 +14,10 @@ public data class Info<out Action, out State, out Response>(
   val response: Response
 )
 
-public fun <Action, State, Response> Formula<Info<Action, State, Response>>.check(
+public suspend fun <Action, State, Response> Formula<Info<Action, State, Response>>.check(
   actions: List<Action>,
   initial: State,
-  step: (Action, State) -> Step<State, Response>
+  step: suspend (Action, State) -> Step<State, Response>
 ) {
   var currentState = initial
   var currentFormula = this
