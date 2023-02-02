@@ -149,6 +149,34 @@ checks. The next operator is `afterwards`, which specifies a property which shou
 current one, and also gives access to the information of the current state -- which at the point of `afterwards` has
 become a `previous` step. The final element is the test of the new response being larger than the previous one.
 
-## Comparison to [non-deterministic testing](https://kotest.io/docs/assertions/eventually.html) for IO
-
 ## Comparison to white-box testing
+
+There are other libraries geared towards testing of stateful systems, like [Hedgehog](https://hedgehogqa.github.io/scala-hedgehog/docs/guides-state-tutorial/) for Scala, and [quickcheck-state-machine](https://github.com/stevana/quickcheck-state-machine#readme) for Haskell. Those libraries emphasize a different approach of testing,
+ín which the _state_ of the implementation is tested against the state of the model. This is more similar to
+_white-box_ testing, that is, in testing in which the inner workings of the model are available to checks.
+
+`kotest-trace` takes another approach, emphasizing the action/response model. There are few reasons that makes this
+approach interesting. Those reasons stem from the fact that you don't need a _full_ model of the system in order to
+test it, only a model of how actions are generated. Instead, the power lies on the temporal operators provided by the
+library, which allow us to test "at a distance", relating different steps in the same trace.
+
+One of the most difficult things to practice when learning about property-based testing is to not simply _replicate_
+the desired implementation, but instead define properties which give enough room to different implementations, given
+that they satisfy whatever is needed for the rest of the system to behave correctly. This problem is more pressing if
+you use white-box testing, because you want to test _step-by-step_ that the inners of the implementation correspond to
+the inner of the model. You're thus prone to overfit against the model.
+
+The last reason to use black-box testing is that modelling some systems would require a huge investment, yet
+specifying properties about traces of inputs is relatively easy. Think of an HTTP server, or a set of microservices.
+
+## Comparison to non-deterministic testing
+
+Kotest already ships with some temporal operators, like [`eventually`](https://kotest.io/docs/assertions/eventually.html)
+or [`continually`](https://kotest.io/docs/assertions/continually.html). Those operators are related to the ones in
+`kotest-trace`, but apply to a completely different realm. Kotest built-in one talk about _actual time_, so you can
+express things like "if we increment the counter, any read after 50 ms should return a greater number". This is
+useful when testing the _concurrent_ properties of a piece of code.
+
+In `kotest-trace` the temporal operators refer to _logical time_; each action counts as one further step, there's no
+relation to a certain step taking more or less time. As such, the usage is different, because it talks about the 
+logical behavior of the code, not about its concurrency characteristics.
