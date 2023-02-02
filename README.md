@@ -149,7 +149,9 @@ checks. The next operator is `afterwards`, which specifies a property which shou
 current one, and also gives access to the information of the current state -- which at the point of `afterwards` has
 become a `previous` step. The final element is the test of the new response being larger than the previous one.
 
-## Comparison to white-box testing
+## Comparison with...
+
+### ...white-box testing
 
 There are other libraries geared towards testing of stateful systems, like [Hedgehog](https://hedgehogqa.github.io/scala-hedgehog/docs/guides-state-tutorial/) for Scala, and [quickcheck-state-machine](https://github.com/stevana/quickcheck-state-machine#readme) for Haskell. Those libraries emphasize a different approach of testing,
 ín which the _state_ of the implementation is tested against the state of the model. This is more similar to
@@ -169,7 +171,7 @@ the inner of the model. You're thus prone to overfit against the model.
 The last reason to use black-box testing is that modelling some systems would require a huge investment, yet
 specifying properties about traces of inputs is relatively easy. Think of an HTTP server, or a set of microservices.
 
-## Comparison to non-deterministic testing
+### ...non-deterministic testing
 
 Kotest already ships with some temporal operators, like [`eventually`](https://kotest.io/docs/assertions/eventually.html)
 or [`continually`](https://kotest.io/docs/assertions/continually.html). Those operators are related to the ones in
@@ -180,3 +182,14 @@ useful when testing the _concurrent_ properties of a piece of code.
 In `kotest-trace` the temporal operators refer to _logical time_; each action counts as one further step, there's no
 relation to a certain step taking more or less time. As such, the usage is different, because it talks about the 
 logical behavior of the code, not about its concurrency characteristics.
+
+## References
+
+The use of temporal logic to describe program properties has a long history. Some interesting pointers are:
+
+- [Quickstrom's Specification Language](https://docs.quickstrom.io/en/0.5.0/topics/specification-language.html). 
+  Quickstrom is a tool for testing how a web application behaves when some events like clicking occur. It uses
+  temporal logic to express the desired outcome.
+- [Formal Software Design with Alloy 6](https://haslab.github.io/formal-software-design/index.html). Alloy is a tool
+  for formal modeling and exploration of systems. In Alloy you use temporal logic in both describing the system and
+  specifying properties which should be verified.
