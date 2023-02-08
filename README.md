@@ -82,18 +82,16 @@ should be satisfied at every step, we use the `always` operator.
 
 ```kotlin
 always {
-  holds("non-negative") {
-    when (it.action) {
-      Action.READ -> it.response >= 0
-      else -> true
-    }
+  should {
+    if (it.action == Action.READ)
+      it.response.shouldBeGreaterThanOrEqual(0)
   }
 }
 ```
 
 This example shows two important characteristics of how we express properties. The first one is the aforementioned usage
 of `always` to make the property apply to every step (if you are wondering; without it, it only applies to the _first_
-step). The second is that we need to wrap checks with `holds`, inside that block we can access both the action which was
+step). The second is that we need to wrap checks with `should`, inside that block we can access both the action which was
 applied and the response we obtained.
 
 If the system under test works correctly, Kotest is happy. Otherwise, a problem is reported.
@@ -103,27 +101,31 @@ Property test failed for inputs
 
 0) [READ, READ, READ, READ, READ, INCREMENT, READ, READ, READ, INCREMENT, INCREMENT, READ, READ, READ, READ, INCREMENT, INCREMENT, INCREMENT, INCREMENT, READ, ...and 80 more (set the 'kotest.assertions.collection.print.size' JVM property to see more / less items)]
 
-Caused by java.lang.AssertionError: Formula falsified for Info(action=READ, previousState=-2, nextState=-2, response=-1):
-- non-negative
-trace: [READ] at
-	com.fortyseven.kotest.trace.formula.ValidateKt.check(Validate.kt:49)
-	com.fortyseven.kotest.trace.formula.ValidateKt.check(Validate.kt:31)
+Caused by TraceAssertionError(
+  trace=[READ],
+  state=Success(Info(action=READ, previousState=-2, nextState=-2, response=-1)),
+  problems=[java.lang.AssertionError: -1 should be >= 0]) at
+	com.fortyseven.kotest.trace.formula.ValidateKt.throwIfFailed(Validate.kt:40)
+	com.fortyseven.kotest.trace.formula.ValidateKt.check(Validate.kt:29)
+	com.fortyseven.kotest.trace.formula.ValidateKt.check$default(Validate.kt:16)
 	com.fortyseven.kotest.trace.ArbModelKt$checkAgainst$2.invokeSuspend(ArbModel.kt:60)
-	com.fortyseven.kotest.trace.ArbModelKt$checkAgainst$2.invoke(ArbModel.kt)
 
 Attempting to shrink arg [READ, READ, READ, READ, READ, INCREMENT, READ, READ, READ, INCREMENT, INCREMENT, READ, READ, READ, READ, INCREMENT, INCREMENT, INCREMENT, INCREMENT, READ, ...and 80 more (set the 'kotest.assertions.collection.print.size' JVM property to see more / less items)]
 Shrink #1: [READ, READ, READ, READ, READ, INCREMENT, READ, READ, READ, INCREMENT, INCREMENT, READ, READ, READ, READ, INCREMENT, INCREMENT, INCREMENT, INCREMENT, READ, ...and 30 more (set the 'kotest.assertions.collection.print.size' JVM property to see more / less items)] fail
-...
+Shrink #2: [READ, READ, READ, READ, READ, INCREMENT, READ, READ, READ, INCREMENT, INCREMENT, READ, READ, READ, READ, INCREMENT, INCREMENT, INCREMENT, INCREMENT, READ, ...and 5 more (set the 'kotest.assertions.collection.print.size' JVM property to see more / less items)] fail
+Shrink #3: [READ, READ, READ, READ, READ, INCREMENT, READ, READ, READ, INCREMENT, INCREMENT, READ] fail
+Shrink #4: [READ, READ, READ, READ, READ, INCREMENT] fail
 Shrink #5: [READ, READ, READ] fail
 Shrink #6: [READ] fail
 Shrink #7: [] pass
 Shrink result (after 7 shrinks) => [READ]
+
 ```
 
 As you can see, the first trace where this property failed is quite long, but the _shrinking_ process found that a
 sequence with a single `READ` is already wrong. It also tells which of the formulae in the property failed -- in this
-case, `non-negative`. You can have more than one `holds` block in your property, and each of them is checked
-independently.
+case, `shouldBeGreaterThanOrEqual(0)`. You can have more than one `should` block in your property, and each of them is
+checked independently.
 
 Now let's move to a more complex property, which showcases how you can relate different steps in the sequence. In this
 case the property should state that if you read at a given moment, any later read should return a value at least as
@@ -134,7 +136,7 @@ always {
   implies({ it.action == Action.READ }) {
     afterwards { previous ->
       implies({ it.action == Action.READ }) {
-        holds(">= ${previous.response}?") { it.response >= previous.response }
+        should { it.response.shouldBeGreaterThanOrEqual(previous.response) }
       }
     }
   }

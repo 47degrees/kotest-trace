@@ -2,12 +2,13 @@ package com.fortyseven.kotest.trace.ktor.increment
 
 import com.fortyseven.kotest.trace.StatelessArbModel
 import com.fortyseven.kotest.trace.formula.always
-import com.fortyseven.kotest.trace.formula.holds
+import com.fortyseven.kotest.trace.formula.should
 import com.fortyseven.kotest.trace.ktor.HttpFormula
 import com.fortyseven.kotest.trace.ktor.RequestInfo
 import com.fortyseven.kotest.trace.ktor.Trace
 import com.fortyseven.kotest.trace.ktor.checkAgainst
 import io.kotest.core.spec.style.StringSpec
+import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.property.Arb
 import io.kotest.property.arbitrary.choose
 import io.kotest.property.arbitrary.constant
@@ -40,10 +41,10 @@ class StateMachineSpec: StringSpec({
   "at least zero" {
     performTest(simpleModel) {
       always {
-        holds("non-negative") {
+        should {
           when (it.action.resource) {
-            is Routes.Value -> it.response.body<Int>() >= 0
-            else -> true
+            is Routes.Value -> it.response.body<Int>().shouldBeGreaterThanOrEqual(0)
+            else -> { }
           }
         }
       }

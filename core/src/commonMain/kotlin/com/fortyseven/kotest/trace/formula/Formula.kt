@@ -1,5 +1,11 @@
 package com.fortyseven.kotest.trace.formula
 
+import io.kotest.assertions.fail
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.result.shouldBeFailure
+import io.kotest.matchers.result.shouldBeSuccess
+import io.kotest.matchers.should
+import io.kotest.matchers.types.beInstanceOf
 import kotlin.reflect.KClass
 
 /**
@@ -7,10 +13,9 @@ import kotlin.reflect.KClass
  */
 public sealed interface Formula<in A> {
   public operator fun not(): Formula<A> = when (this) {
-    is TRUE -> FALSE
+    is TRUE -> FALSE("from negation")
     is FALSE -> TRUE
-    is Predicate -> Not(this)
-    is Throws -> Not(this)
+    is Atomic -> Not(this)
     is Not -> this.formula
     is And -> or(formulae.map { !it })
     is Or -> and(formulae.map { !it })
@@ -27,8 +32,7 @@ public sealed interface Formula<in A> {
   public fun pretty(): String = when (this) {
     is TRUE -> "true"
     is FALSE -> "false"
-    is Predicate -> "{ $message }"
-    is Throws -> "{ $message }"
+    is Atomic -> "{ * }"
     is Not -> "!${formula.pretty()}"
     is And -> formulae.joinToString(separator = " & ") { it.pretty() }
     is Or -> formulae.joinToString(separator = " | ") { it.pretty() }
@@ -40,11 +44,8 @@ public sealed interface Formula<in A> {
   }
 }
 
-public fun <A, B> Atomic<A>.contramap(f: (B) -> A): Atomic<B> = when(this) {
-  is Constant -> this
-  is Predicate -> Predicate(message) { test(f(it)) }
-  is Throws -> this
-}
+public fun <A, B> Atomic<A>.contramap(f: (B) -> A): Atomic<B> =
+  Atomic { test(it.map(f)) }
 
 public fun <A, B> Formula<A>.contramap(f: (B) -> A): Formula<B> = when(this) {
   is Atomic<A> -> this.contramap(f)
@@ -58,21 +59,7 @@ public fun <A, B> Formula<A>.contramap(f: (B) -> A): Formula<B> = when(this) {
   is Eventually -> Eventually(formula.contramap(f))
 }
 
-/**
- * Atomic formulae contain *no* temporal operators.
- */
-public sealed interface Atomic<in A>: Formula<A>
-
-/**
- * Constant formulae.
- */
-public sealed interface Constant: Atomic<Any?>
-public object TRUE: Constant
-public object FALSE: Constant
-
-internal data class Predicate<in A>(val message: String, val test: suspend (A) -> Boolean): Atomic<A>
-internal data class Throws(val message: String, val test: suspend (Throwable) -> Boolean): Atomic<Any?>
-
+public open class Atomic<in A>(public val test: suspend (Result<A>) -> Unit): Formula<A>
 internal data class Not<in A>(val formula: Atomic<A>): Formula<A>
 
 // logical operators
@@ -94,26 +81,49 @@ internal data class DependentNext<in A>(val formula: (A) -> Formula<A>): Formula
 
 // nicer builders
 
+public object TRUE: Atomic<Any?>({ })
+public class FALSE(message: String): Atomic<Any?>({ throw FalseError(message) })
+
+/**
+ * Basic formula which checks that an item is produced, and satisfies the [test].
+ */
+public fun <A> should(test: suspend (A) -> Unit): Atomic<A> =
+  Atomic {
+    it.shouldBeSuccess()
+    test(it.getOrNull()!!)
+  }
+
+/**
+ * Basic formula which checks that an item is produced, and satisfies the [predicate].
+ */
+public fun <A> holds(predicate: suspend (A) -> Boolean): Atomic<A> =
+  should { predicate(it).shouldBeTrue() }
+
 /**
  * Basic formula which checks that an item is produced, and satisfies the [predicate].
  */
 public fun <A> holds(message: String, predicate: suspend (A) -> Boolean): Atomic<A> =
-  Predicate(message, predicate)
+  should { if (!predicate(it)) fail(message) }
 
 /**
  * Basic formula which checks that an exception of type [T] has been thrown.
  */
-public fun <T: Throwable> throws(klass: KClass<T>, message: String, predicate: suspend (T) -> Boolean = { true }): Atomic<Any?> =
-  Throws(message) {
+public fun <T: Throwable> throws(klass: KClass<T>, test: suspend (T) -> Unit = { }): Atomic<Any?> =
+  Atomic {
+    it.shouldBeFailure()
+    it.exceptionOrNull()!!.should(beInstanceOf(klass))
     @Suppress("UNCHECKED_CAST")
-    if (klass.isInstance(it)) predicate(it as T) else false
+    test(it as T)
   }
 
 /**
  * Basic formula which checks that an exception of type [T] has been thrown.
  */
-public inline fun <reified T: Throwable> throws(message: String, noinline predicate: suspend (T) -> Boolean = { true }): Atomic<Any?> =
-  throws(T::class, message, predicate)
+public inline fun <reified T: Throwable> throws(crossinline test: suspend (T) -> Unit = { }): Atomic<Any?> =
+  Atomic {
+    it.shouldBeFailure<T>()
+    test(it as T)
+  }
 
 /**
  * Negation of a formula. Note that failure messages are not saved accross negation boundaries.
@@ -131,7 +141,7 @@ public fun <A> and(vararg formulae: Formula<A>): Formula<A> = and(formulae.toLis
 public fun <A> and(formulae: List<Formula<A>>): Formula<A> {
   val filtered = formulae.flatMap {
     when (it) {
-      TRUE -> emptyList()
+      is TRUE -> emptyList()
       is And -> it.formulae
       else -> listOf(it)
     }
@@ -150,12 +160,12 @@ public fun <A> or(vararg formulae: Formula<A>): Formula<A> = or(formulae.toList(
 public fun <A> or(formulae: List<Formula<A>>): Formula<A> {
   val filtered = formulae.flatMap {
     when (it) {
-      FALSE -> emptyList()
+      is FALSE -> emptyList()
       is Or -> it.formulae
       else -> listOf(it)
     }
   }
-  return if (filtered.isEmpty()) FALSE else Or(filtered)
+  return if (filtered.isEmpty()) FALSE("empty or") else Or(filtered)
 }
 
 /**
@@ -165,10 +175,13 @@ public fun <A> or(formulae: List<Formula<A>>): Formula<A> {
 public fun <A> implies(`if`: Atomic<A>, then: Formula<A>): Formula<A> = Implies(`if`, then)
 
 public fun <A> implies(condition: (A) -> Boolean, then: Formula<A>): Formula<A> =
-  implies(holds("condition", condition), then)
+  implies(holds(condition), then)
 
 public fun <A> implies(condition: (A) -> Boolean, then: () -> Formula<A>): Formula<A> =
-  implies(holds("condition", condition), then())
+  implies(holds(condition), then())
+
+public fun <A> impliesShould(condition: (A) -> Boolean, then: (A) -> Unit): Formula<A> =
+  implies(holds(condition), should(then))
 
 /**
  * Next, specifies that the formula should hold in the next state.

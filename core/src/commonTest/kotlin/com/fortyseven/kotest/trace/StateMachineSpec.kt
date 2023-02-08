@@ -2,6 +2,7 @@ package com.fortyseven.kotest.trace
 
 import com.fortyseven.kotest.trace.formula.*
 import io.kotest.core.spec.style.StringSpec
+import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.property.Arb
 import io.kotest.property.arbitrary.enum
 
@@ -29,11 +30,8 @@ class StateMachineSpec: StringSpec({
   "at least zero" {
     checkAgainst(model, -2, ::right) {
       always {
-        holds("non-negative") {
-          when (it.action) {
-            Action.READ -> it.response >= 0
-            else -> true
-          }
+        impliesShould({ it.action == Action.READ }) {
+          it.response.shouldBeGreaterThanOrEqual(0)
         }
       }
     }
@@ -43,8 +41,8 @@ class StateMachineSpec: StringSpec({
       always {
         implies({ it.action == Action.READ }) {
           afterwards { previous ->
-            implies({ it.action == Action.READ }) {
-              holds(">= ${previous.response}?") { it.response >= previous.response }
+            impliesShould({ it.action == Action.READ }) {
+              it.response.shouldBeGreaterThanOrEqual(previous.response)
             }
           }
         }

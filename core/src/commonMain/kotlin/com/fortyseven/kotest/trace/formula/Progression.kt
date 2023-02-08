@@ -5,13 +5,9 @@ package com.fortyseven.kotest.trace.formula
 // which is in turned based on formula progression
 // https://users.cecs.anu.edu.au/~thiebaux/papers/icaps05.pdf
 
-internal typealias Problem = String
-
-private val everythingOk: List<Problem>? = null
-private fun problem(message: String): List<Problem> = listOf(message)
-private fun List<Problem>?.isOk() = this == null
-
-internal typealias FormulaStepResult = List<Problem>?
+internal typealias FormulaStepResult = List<AssertionError>?
+private val everythingOk: FormulaStepResult = null
+private fun FormulaStepResult.isOk() = this == null
 private fun List<FormulaStepResult>.andResults() =
   if (all { it.isOk() })
     everythingOk
@@ -25,44 +21,38 @@ private fun List<FormulaStepResult>.orResults() =
 
 public data class FormulaStep<A>(val result: FormulaStepResult, val next: Formula<A>)
 
-public suspend fun <A> Atomic<A>.atomicProgress(x: Result<A>): FormulaStepResult = when (this) {
-  is TRUE -> everythingOk
-  is FALSE -> problem("fail")
-  is Predicate -> x.fold(
-    onSuccess = { if (this.test(it)) everythingOk else problem(message) },
-    onFailure = { problem("Unexpected exception, expecting value") }
-  )
-  is Throws -> x.fold(
-    onSuccess = { problem("Unexpected item, expecting exception") },
-    onFailure = { if (this.test(it)) everythingOk else problem(message) }
-  )
+public suspend fun <A> Atomic<A>.checkAtomic(x: Result<A>): FormulaStepResult = try {
+  this.test(x)
+  null
+} catch(e: AssertionError) {
+  listOf(e)
 }
 
-public suspend fun <A> Formula<A>.progress(x: Result<A>): FormulaStep<A> = when (this) {
+public suspend fun <A> Formula<A>.check(x: Result<A>): FormulaStep<A> = when (this) {
   is Atomic ->
-    FormulaStep(this.atomicProgress(x), TRUE)
+    FormulaStep(this.checkAtomic(x), TRUE)
   is Not -> {
-    if (formula.atomicProgress(x).isOk()) {
-      FormulaStep(problem("Negated condition was true"), TRUE)
+    if (formula.checkAtomic(x).isOk()) {
+      FormulaStep(listOf(NegationWasTrue(formula)), TRUE)
     } else {
       FormulaStep(everythingOk, TRUE)
     }
   }
   is And -> {
-    val steps = formulae.map { it.progress(x) }
+    val steps = formulae.map { it.check(x) }
     val result = steps.map { it.result }.andResults()
     FormulaStep(result, and(steps.map { it.next }))
   }
   is Or -> {
-    val steps = formulae.map { it.progress(x) }
+    val steps = formulae.map { it.check(x) }
     val result = steps.map { it.result }.orResults()
     FormulaStep(result, or(steps.map { it.next }))
   }
   is Implies -> {
-    val leftResult = `if`.atomicProgress(x)
+    val leftResult = `if`.checkAtomic(x)
     if (leftResult.isOk()) {
       // if left is true, we check the right
-      then.progress(x)
+      then.check(x)
     } else {
       // otherwise the formula is true (false => x == true)
       FormulaStep(everythingOk, TRUE)
@@ -81,11 +71,11 @@ public suspend fun <A> Formula<A>.progress(x: Result<A>): FormulaStep<A> = when 
     // when we have always it has to be true
     // 1. in this state,
     // 2. in any other next state
-    val step = formula.progress(x)
+    val step = formula.check(x)
     FormulaStep(step.result, and(step.next, this))
   }
   is Eventually -> {
-    val step = formula.progress(x)
+    val step = formula.check(x)
     if (step.result.isOk()) {
       // this one is true, so we're done
       FormulaStep(everythingOk, TRUE)
@@ -99,18 +89,18 @@ public suspend fun <A> Formula<A>.progress(x: Result<A>): FormulaStep<A> = when 
 
 // is there something missing to prove?
 // if we have 'eventually', we cannot conclude
-public fun <A> Formula<A>.done(): FormulaStepResult = when (this) {
+public fun <A> Formula<A>.leftToProve(): FormulaStepResult = when (this) {
   // atomic predicates are done
   is Atomic -> everythingOk
   is Not -> everythingOk
   // if we have 'and' and 'or', combine
-  is And -> formulae.map { it.done() }.andResults()
-  is Or -> formulae.map { it.done() }.orResults()
-  is Implies -> listOf(`if`.done(), then.done()).andResults()
+  is And -> formulae.map { it.leftToProve() }.andResults()
+  is Or -> formulae.map { it.leftToProve() }.orResults()
+  is Implies -> listOf(`if`.leftToProve(), then.leftToProve()).andResults()
   // we have nothing missing here
   is Next -> everythingOk
   is DependentNext -> everythingOk
   is Always -> everythingOk
   // we have an 'eventually' missing
-  is Eventually -> problem("Should hold eventually: ${formula.pretty()}")
+  is Eventually -> listOf(ShouldHoldEventually(this.formula))
 }
