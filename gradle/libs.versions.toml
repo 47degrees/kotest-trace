@@ -4,6 +4,9 @@ kotlin = "1.8.0"
 kotest = "5.5.4"
 ktor = "2.2.3"
 serialization = "1.5.0-RC"
+kafka = "0.3.0"
+testcontainers = "1.17.6"
+arrow = "1.1.4"
 
 [libraries]
 kotest-assertionsCore = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
@@ -18,6 +21,9 @@ ktor-server-resources = { module = "io.ktor:ktor-server-resources", version.ref 
 ktor-server-contentNegotiation = { module = "io.ktor:ktor-server-content-negotiation", version.ref = "ktor" }
 ktor-client-resources = { module = "io.ktor:ktor-client-resources", version.ref = "ktor" }
 ktor-client-contentNegotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
+kafka = { module = "io.github.nomisrev:kotlin-kafka", version.ref = "kafka" }
+testcontainers-kafka = { module = "org.testcontainers:kafka", version.ref = "testcontainers" }
+arrow-fx-stm = { module = "io.arrow-kt:arrow-fx-stm", version.ref = "arrow" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
